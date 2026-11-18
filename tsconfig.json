@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": [ "ESNext", "DOM", "WebWorker" ],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": [ "node", "vitest/globals" ]
+  },
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "vitest.config.mjs"
+  ]
+}

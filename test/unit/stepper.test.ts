@@ -1,0 +1,56 @@
+import assert from 'assert'
+import createStages from '../../src/stepper'
+
+const TILE_SIZE = 1024
+
+describe('createStages', () => {
+  it('1024x1024 -> 300x300 (1 stage)', () => {
+    assert.deepStrictEqual(createStages(
+      1024,
+      1024,
+      300,
+      300,
+      TILE_SIZE
+    ), [[300, 300]])
+  })
+
+  it('1024x1024 -> 2x2 (2 stages)', () => {
+    assert.deepStrictEqual(createStages(
+      1024,
+      1024,
+      2,
+      2,
+      TILE_SIZE
+    ), [[45, 45], [2, 2]])
+  })
+
+  it('102400x100 -> 1x1 (3 stages)', () => {
+    assert.deepStrictEqual(createStages(
+      102400,
+      100,
+      1,
+      1,
+      TILE_SIZE
+    ), [[2189, 22], [47, 5], [1, 1]])
+  })
+
+  it('20000x1 -> 1x20000 (magnifying along another axis)', () => {
+    assert.deepStrictEqual(createStages(
+      20000,
+      1,
+      1,
+      20000,
+      TILE_SIZE
+    ), [[737, 27], [27, 737], [1, 20000]])
+  })
+
+  it('1x1 -> 20000x20000 (magnifying should always be single stage)', () => {
+    assert.deepStrictEqual(createStages(
+      1,
+      1,
+      20000,
+      20000,
+      TILE_SIZE
+    ), [[20000, 20000]])
+  })
+})
