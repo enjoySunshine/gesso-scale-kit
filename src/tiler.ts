@@ -55,6 +55,16 @@ function pixelCeil (x: number): number {
   return Math.ceil(x)
 }
 
+export function canCreateRegions (options: TilerOptions): boolean {
+  const scaleX = options.toWidth / options.width
+  const scaleY = options.toHeight / options.height
+
+  const innerTileWidth = pixelFloor(options.srcTileSize * scaleX) - 2 * options.destTileBorder
+  const innerTileHeight = pixelFloor(options.srcTileSize * scaleY) - 2 * options.destTileBorder
+
+  return innerTileWidth >= 1 && innerTileHeight >= 1
+}
+
 export default function createRegions (options: TilerOptions): Tile[] {
   const scaleX = options.toWidth / options.width
   const scaleY = options.toHeight / options.height

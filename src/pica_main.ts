@@ -2,7 +2,7 @@ import MathLib, { type MathResizeAndUnsharpOptions } from './mathlib'
 import Pool from './pool'
 import * as utils from './utils'
 import createStages from './stepper'
-import createRegions, { type Tile } from './tiler'
+import createRegions, { canCreateRegions, type Tile } from './tiler'
 import * as supported_features from './supported_features'
 import type {
   Capabilities,
@@ -389,6 +389,22 @@ export class Pica {
       toCtx: null
     }
 
+    // The unsharp mask needs a border of source pixels around every tile. When
+    // the destination is smaller than that border allows (see createRegions),
+    // tiling is impossible. In that case resize without per-tile sharpening and
+    // apply the unsharp mask once to the whole resulting image instead. This is
+    // the same operation as resizing without sharpening followed by a single
+    // unsharp pass, and keeps tiny destinations (e.g. an 8x4 icon) working.
+    const destTileBorder = Math.ceil(Math.max(3, 2.5 * resizeParams.unsharpRadius | 0))
+    const wholeImageUnsharp = resizeParams.unsharpAmount > 0 && !canCreateRegions({
+      width: resizeParams.width,
+      height: resizeParams.height,
+      srcTileSize: this.options.tile,
+      toWidth: resizeParams.toWidth,
+      toHeight: resizeParams.toHeight,
+      destTileBorder
+    })
+
     const processTile = (tile: Tile) => this.__limit(async () => {
       if (ctx.canceled) return ctx.cancelToken
 
@@ -402,9 +418,11 @@ export class Pica {
         offsetX: tile.offsetX,
         offsetY: tile.offsetY,
         filter: resizeParams.filter,
-        unsharpAmount: resizeParams.unsharpAmount,
-        unsharpRadius: resizeParams.unsharpRadius,
-        unsharpThreshold: resizeParams.unsharpThreshold
+        // In whole-image unsharp mode sharpening is deferred to a single pass
+        // over the finished image, so tile jobs must not sharpen on their own.
+        unsharpAmount: wholeImageUnsharp ? 0 : resizeParams.unsharpAmount,
+        unsharpRadius: wholeImageUnsharp ? 0 : resizeParams.unsharpRadius,
+        unsharpThreshold: wholeImageUnsharp ? 0 : resizeParams.unsharpThreshold
       }
 
       this.debug('Invoke resize math')
@@ -459,7 +477,9 @@ export class Pica {
       srcTileSize: this.options.tile,
       toWidth: resizeParams.toWidth,
       toHeight: resizeParams.toHeight,
-      destTileBorder: Math.ceil(Math.max(3, 2.5 * resizeParams.unsharpRadius | 0))
+      // No border is needed around tiles when the unsharp mask is applied to
+      // the whole image afterwards.
+      destTileBorder: wholeImageUnsharp ? 0 : destTileBorder
     })
 
     const jobs = regions.map(tile => processTile(tile))
@@ -475,6 +495,24 @@ export class Pica {
 
     try {
       await Promise.all(jobs)
+
+      if (wholeImageUnsharp) {
+        this.debug('Apply unsharp mask to the whole image')
+
+        const iData = stageEnv.toCtx!.getImageData(0, 0, resizeParams.toWidth, resizeParams.toHeight)
+
+        this.__mathlib!.unsharp_mask(
+          iData.data,
+          resizeParams.toWidth,
+          resizeParams.toHeight,
+          resizeParams.unsharpAmount,
+          resizeParams.unsharpRadius,
+          resizeParams.unsharpThreshold
+        )
+
+        stageEnv.toCtx!.putImageData(iData, 0, 0)
+      }
+
       this.debug('Finished!')
       cleanup(stageEnv)
       return to
